@@ -1,0 +1,9 @@
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+*.moved-aside
+*.hmap
+*.ipa
+.swiftpm/
