@@ -5,8 +5,10 @@ final class HotkeyManager {
     static let shared = HotkeyManager()
 
     var onHotkey: (() -> Void)?
+    var onRecordHotkey: (() -> Void)?
 
-    private var hotKeyRef: EventHotKeyRef?
+    private var captureHotKeyRef: EventHotKeyRef?
+    private var recordHotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
 
     func register() {
@@ -27,21 +29,35 @@ final class HotkeyManager {
         )
         guard status == noErr else { return }
 
-        let hotKeyID = EventHotKeyID(signature: OSType(0x52534854), id: 1) // 'RSHT'
+        let captureHotKeyID = EventHotKeyID(signature: OSType(0x52534854), id: 1) // 'RSHT'
         RegisterEventHotKey(
             UInt32(kVK_ANSI_S),
             UInt32(cmdKey | optionKey),
-            hotKeyID,
+            captureHotKeyID,
             GetApplicationEventTarget(),
             0,
-            &hotKeyRef
+            &captureHotKeyRef
+        )
+
+        let recordHotKeyID = EventHotKeyID(signature: OSType(0x52534854), id: 2) // 'RSHT'
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_R),
+            UInt32(cmdKey | optionKey),
+            recordHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &recordHotKeyRef
         )
     }
 
     func unregister() {
-        if let hotKeyRef {
-            UnregisterEventHotKey(hotKeyRef)
-            self.hotKeyRef = nil
+        if let captureHotKeyRef {
+            UnregisterEventHotKey(captureHotKeyRef)
+            self.captureHotKeyRef = nil
+        }
+        if let recordHotKeyRef {
+            UnregisterEventHotKey(recordHotKeyRef)
+            self.recordHotKeyRef = nil
         }
         if let handlerRef {
             RemoveEventHandler(handlerRef)
@@ -49,8 +65,25 @@ final class HotkeyManager {
         }
     }
 
-    func handle() {
-        onHotkey?()
+    func handle(_ event: EventRef?) {
+        guard let event else { return }
+        var hotKeyID = EventHotKeyID()
+        let status = GetEventParameter(
+            event,
+            EventParamName(kEventParamDirectObject),
+            UInt32(typeEventHotKeyID),
+            nil,
+            MemoryLayout<EventHotKeyID>.size,
+            nil,
+            &hotKeyID
+        )
+        guard status == noErr else { return }
+
+        if hotKeyID.id == 1 {
+            onHotkey?()
+        } else if hotKeyID.id == 2 {
+            onRecordHotkey?()
+        }
     }
 }
 
@@ -60,7 +93,7 @@ private func recShotHotkeyHandler(
     userData: UnsafeMutableRawPointer?
 ) -> OSStatus {
     DispatchQueue.main.async {
-        HotkeyManager.shared.handle()
+        HotkeyManager.shared.handle(event)
     }
     return noErr
 }

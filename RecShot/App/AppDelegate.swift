@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.onHotkey = {
             AppState.shared.captureRegion()
         }
+        HotkeyManager.shared.onRecordHotkey = {
+            AppState.shared.recordChoice()
+        }
         HotkeyManager.shared.register()
 
         NotificationCenter.default.addObserver(

@@ -10,7 +10,7 @@ enum CaptureError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            return "Screen Recording permission is required. Enable it in System Settings › Privacy & Security › Screen Recording."
+            return "Screen & System Audio Recording permission is required for screenshots and recordings. Enable it in System Settings › Privacy & Security › Screen & System Audio Recording."
         case .noDisplay:
             return "Couldn’t find the display to capture."
         case .failedToSave:
@@ -22,18 +22,31 @@ enum CaptureError: LocalizedError {
 }
 
 final class CaptureManager {
-    func ensurePermission() -> Bool {
+    func ensurePermission() async -> Bool {
         if CGPreflightScreenCaptureAccess() {
             return true
         }
-        CGRequestScreenCaptureAccess()
+        _ = CGRequestScreenCaptureAccess()
         if CGPreflightScreenCaptureAccess() {
             return true
         }
 
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+            return true
+        } catch {
+            presentPermissionAlert(error: error)
+            return false
+        }
+    }
+
+    private func presentPermissionAlert(error: Error) {
         let alert = NSAlert()
         alert.messageText = "Screen Recording permission needed"
-        alert.informativeText = "RecShot needs Screen Recording access to take screenshots. Enable RecShot in System Settings › Privacy & Security › Screen Recording, then capture again."
+        alert.informativeText = "Enable the installed RecShot app in System Settings › Privacy & Security › Screen & System Audio Recording, then quit and reopen RecShot. If an older RecShot entry is enabled, remove it and add /Applications/RecShot.app.\n\n\(error.localizedDescription)"
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Later")
         if alert.runModal() == .alertFirstButtonReturn {
@@ -47,7 +60,6 @@ final class CaptureManager {
                 }
             }
         }
-        return false
     }
 
     func captureFullDisplay(_ screen: NSScreen) async throws -> URL {

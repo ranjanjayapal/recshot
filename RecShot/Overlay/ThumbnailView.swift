@@ -23,12 +23,34 @@ struct ThumbnailCard: View {
             DragSourceRepresentable(
                 url: item.url,
                 preview: item.thumbnail,
+                isVideo: item.isVideo,
                 onClick: { state.copy(item) },
                 onCopy: { state.copy(item) },
                 onReveal: { state.reveal(item) },
                 onDelete: { state.delete(item) }
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            if item.isVideo {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 8, weight: .bold))
+                        if item.duration > 0 {
+                            Text(durationText(item.duration))
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(.black.opacity(0.62), in: Capsule())
+                    .padding(6)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .allowsHitTesting(false)
+            }
 
             if state.copiedID == item.id {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -61,11 +83,17 @@ struct ThumbnailCard: View {
         .onHover { hovering = $0 }
         .help("Drag into any app · Click to copy")
     }
+
+    private func durationText(_ duration: TimeInterval) -> String {
+        let totalSeconds = Int(duration)
+        return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
+    }
 }
 
 struct DragSourceRepresentable: NSViewRepresentable {
     let url: URL
     let preview: NSImage
+    let isVideo: Bool
     let onClick: () -> Void
     let onCopy: () -> Void
     let onReveal: () -> Void
@@ -75,6 +103,7 @@ struct DragSourceRepresentable: NSViewRepresentable {
         let view = FileDragView()
         view.url = url
         view.preview = preview
+        view.isVideo = isVideo
         view.onClick = onClick
         view.onCopy = onCopy
         view.onReveal = onReveal
@@ -85,6 +114,7 @@ struct DragSourceRepresentable: NSViewRepresentable {
     func updateNSView(_ view: FileDragView, context: Context) {
         view.url = url
         view.preview = preview
+        view.isVideo = isVideo
         view.onClick = onClick
         view.onCopy = onCopy
         view.onReveal = onReveal
@@ -95,6 +125,7 @@ struct DragSourceRepresentable: NSViewRepresentable {
 final class FileDragView: NSView, NSDraggingSource {
     var url: URL?
     var preview: NSImage?
+    var isVideo = false
     var onClick: (() -> Void)?
     var onCopy: (() -> Void)?
     var onReveal: (() -> Void)?
@@ -154,7 +185,7 @@ final class FileDragView: NSView, NSDraggingSource {
 
     private func beginDrag(_ event: NSEvent) {
         guard let url else { return }
-        let writer = ScreenshotPasteboardWriter(url: url)
+        let writer = ScreenshotPasteboardWriter(url: url, isVideo: isVideo)
         let item = NSDraggingItem(pasteboardWriter: writer)
         item.setDraggingFrame(bounds, contents: preview)
         beginDraggingSession(with: [item], event: event, source: self)
@@ -174,13 +205,15 @@ final class FileDragView: NSView, NSDraggingSource {
 
 final class ScreenshotPasteboardWriter: NSObject, NSPasteboardWriting {
     let url: URL
+    let isVideo: Bool
 
-    init(url: URL) {
+    init(url: URL, isVideo: Bool) {
         self.url = url
+        self.isVideo = isVideo
     }
 
     func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-        [.fileURL, .png]
+        isVideo ? [.fileURL] : [.fileURL, .png]
     }
 
     func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {

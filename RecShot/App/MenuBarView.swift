@@ -14,6 +14,18 @@ struct MenuBarView: View {
             state.captureFullDisplay()
         }
 
+        if state.isRecording {
+            Button("Stop Recording") {
+                state.stopRecording()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
+        } else {
+            Button("Record…") {
+                state.recordChoice()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
+        }
+
         Divider()
 
         Button(state.isStackExpanded ? "Collapse Stack" : "Expand Stack") {

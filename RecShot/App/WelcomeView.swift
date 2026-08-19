@@ -19,12 +19,13 @@ struct WelcomeView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Label("⌥⌘S captures a region", systemImage: "viewfinder")
+                Label("⌥⌘R records an app or full display", systemImage: "record.circle")
                 Label("Click the corner toggle to show the stack", systemImage: "square.stack")
                 Label("Drag a thumbnail into Slack, Notes, Figma…", systemImage: "hand.draw")
             }
             .font(.system(size: 13, weight: .medium))
 
-            Text("macOS will ask for Screen Recording permission on the first capture.")
+            Text("macOS will ask for Screen & System Audio Recording permission on the first capture. Quit and reopen RecShot after enabling it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 

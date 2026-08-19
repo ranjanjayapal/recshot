@@ -1,11 +1,21 @@
 import AppKit
+import AVFoundation
 import UniformTypeIdentifiers
+
+enum CaptureKind: Equatable {
+    case screenshot
+    case recording
+}
 
 struct ScreenshotItem: Identifiable, Equatable {
     var id: String { url.path }
     let url: URL
     let createdAt: Date
     let thumbnail: NSImage
+    let kind: CaptureKind
+    let duration: TimeInterval
+
+    var isVideo: Bool { kind == .recording }
 
     static func == (lhs: ScreenshotItem, rhs: ScreenshotItem) -> Bool {
         lhs.url == rhs.url
@@ -13,12 +23,12 @@ struct ScreenshotItem: Identifiable, Equatable {
 }
 
 final class ScreenshotStore {
-    static let keepLimit = 50
+    static let overlayThumbnailLimit = 10
 
     var capturesDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("RecShot/captures", isDirectory: true)
+        let pictures = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Pictures", isDirectory: true)
+        return pictures.appendingPathComponent("RecShot", isDirectory: true)
     }
 
     func load() -> [ScreenshotItem] {
@@ -29,29 +39,20 @@ final class ScreenshotStore {
             options: [.skipsHiddenFiles]
         )) ?? []
 
-        let pngs = urls
-            .filter { $0.pathExtension.lowercased() == "png" }
+        let captures = urls
+            .filter(isCaptureURL)
             .sorted { a, b in
                 createdAt(a) > createdAt(b)
             }
 
-        var items = pngs.compactMap(makeItem)
-        trim(&items)
-        return items
+        return captures.enumerated().compactMap { index, url in
+            makeItem(url: url, includeThumbnail: index < Self.overlayThumbnailLimit)
+        }
     }
 
     func save(_ image: CGImage) throws -> URL {
         ensureDirectory()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
-        var name = "RecShot-\(formatter.string(from: Date())).png"
-        var url = capturesDirectory.appendingPathComponent(name)
-        var suffix = 2
-        while FileManager.default.fileExists(atPath: url.path) {
-            name = "RecShot-\(formatter.string(from: Date()))-\(suffix).png"
-            url = capturesDirectory.appendingPathComponent(name)
-            suffix += 1
-        }
+        let url = uniqueURL(fileExtension: "png")
 
         guard let destination = CGImageDestinationCreateWithURL(
             url as CFURL,
@@ -68,20 +69,50 @@ final class ScreenshotStore {
         return url
     }
 
-    func makeItem(url: URL) -> ScreenshotItem? {
-        guard let image = NSImage(contentsOf: url) else { return nil }
+    func recordingURL() -> URL {
+        ensureDirectory()
+        return uniqueURL(fileExtension: "mp4")
+    }
+
+    func makeItem(url: URL, includeThumbnail: Bool = true) -> ScreenshotItem? {
+        let kind: CaptureKind
+        let thumbnail: NSImage
+        let duration: TimeInterval
+
+        switch url.pathExtension.lowercased() {
+        case "png":
+            guard let image = NSImage(contentsOf: url) else { return nil }
+            kind = .screenshot
+            thumbnail = Self.thumbnail(from: image)
+            duration = 0
+        case "mov", "mp4":
+            kind = .recording
+            thumbnail = includeThumbnail
+                ? Self.videoThumbnail(from: url)
+                : Self.videoPlaceholder
+            let seconds = AVPlayerItem(url: url).duration.seconds
+            duration = seconds.isFinite ? max(0, seconds) : 0
+        default:
+            return nil
+        }
+
         return ScreenshotItem(
             url: url,
             createdAt: createdAt(url),
-            thumbnail: Self.thumbnail(from: image)
+            thumbnail: thumbnail,
+            kind: kind,
+            duration: duration
         )
     }
 
     func copyToClipboard(_ item: ScreenshotItem) {
-        guard let image = NSImage(contentsOf: item.url) else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.writeObjects([image, item.url as NSURL])
+        if item.isVideo {
+            pasteboard.writeObjects([item.url as NSURL])
+        } else if let image = NSImage(contentsOf: item.url) {
+            pasteboard.writeObjects([image, item.url as NSURL])
+        }
     }
 
     func delete(_ item: ScreenshotItem) {
@@ -93,22 +124,44 @@ final class ScreenshotStore {
             at: capturesDirectory,
             includingPropertiesForKeys: nil
         )) ?? []
-        for url in urls where url.pathExtension.lowercased() == "png" {
+        for url in urls where isCaptureURL(url) {
             try? FileManager.default.removeItem(at: url)
         }
     }
 
-    func trim(_ items: inout [ScreenshotItem]) {
-        guard items.count > Self.keepLimit else { return }
-        let extra = items.suffix(from: Self.keepLimit)
-        for item in extra {
-            try? FileManager.default.removeItem(at: item.url)
-        }
-        items = Array(items.prefix(Self.keepLimit))
-    }
-
     private func ensureDirectory() {
         try? FileManager.default.createDirectory(at: capturesDirectory, withIntermediateDirectories: true)
+
+        let legacyDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("RecShot/captures", isDirectory: true)
+        guard let legacyDirectory, legacyDirectory != capturesDirectory else { return }
+        let legacyURLs = (try? FileManager.default.contentsOfDirectory(
+            at: legacyDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        for source in legacyURLs where isCaptureURL(source) {
+            let destination = capturesDirectory.appendingPathComponent(source.lastPathComponent)
+            guard !FileManager.default.fileExists(atPath: destination.path) else { continue }
+            try? FileManager.default.moveItem(at: source, to: destination)
+        }
+    }
+
+    private func uniqueURL(fileExtension: String) -> URL {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        let baseName = "RecShot-\(formatter.string(from: Date()))"
+        var url = capturesDirectory.appendingPathComponent("\(baseName).\(fileExtension)")
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = capturesDirectory.appendingPathComponent("\(baseName)-\(suffix).\(fileExtension)")
+            suffix += 1
+        }
+        return url
+    }
+
+    private func isCaptureURL(_ url: URL) -> Bool {
+        ["png", "mov", "mp4"].contains(url.pathExtension.lowercased())
     }
 
     private func createdAt(_ url: URL) -> Date {
@@ -132,5 +185,28 @@ final class ScreenshotStore {
         )
         thumb.unlockFocus()
         return thumb
+    }
+
+    private static func videoThumbnail(from url: URL) -> NSImage {
+        let asset = AVAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+
+        let candidateTimes = [
+            CMTime.zero,
+            CMTime(value: 1, timescale: 30),
+            CMTime(value: 1, timescale: 10)
+        ]
+        for time in candidateTimes {
+            if let image = try? generator.copyCGImage(at: time, actualTime: nil) {
+                return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+            }
+        }
+        return videoPlaceholder
+    }
+
+    private static var videoPlaceholder: NSImage {
+        NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Recording")
+            ?? NSImage(size: NSSize(width: 400, height: 225))
     }
 }

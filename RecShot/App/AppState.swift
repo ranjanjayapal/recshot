@@ -6,18 +6,25 @@ final class AppState: ObservableObject {
     static let shared = AppState()
     static let onboardingKey = "hasSeenOnboarding"
     static let expandedKey = "stackExpanded"
+    static let overlayLimit = 10
 
     @Published var items: [ScreenshotItem] = []
     @Published var isStackExpanded: Bool {
         didSet { UserDefaults.standard.set(isStackExpanded, forKey: Self.expandedKey) }
     }
     @Published var isCapturing = false
+    @Published var isRecording = false
+    @Published var recordingDuration: TimeInterval = 0
     @Published var copiedID: String?
     @Published var showOnboarding = false
 
     let store = ScreenshotStore()
     private let capture = CaptureManager()
+    private let recorder = ScreenRecorder()
     private var captureTask: Task<Void, Never>?
+    private var recordingTask: Task<Void, Never>?
+    private var recordingTimerTask: Task<Void, Never>?
+    private var recordingStartedAt: Date?
     private var copiedResetTask: Task<Void, Never>?
 
     private init() {
@@ -30,7 +37,7 @@ final class AppState: ObservableObject {
     }
 
     func captureRegion() {
-        guard captureTask == nil else { return }
+        guard captureTask == nil, recordingTask == nil, !isRecording else { return }
         captureTask = Task { [weak self] in
             defer { self?.captureTask = nil }
             await self?.runRegionCapture()
@@ -38,11 +45,95 @@ final class AppState: ObservableObject {
     }
 
     func captureFullDisplay() {
-        guard captureTask == nil else { return }
+        guard captureTask == nil, recordingTask == nil, !isRecording else { return }
         captureTask = Task { [weak self] in
             defer { self?.captureTask = nil }
             await self?.runFullDisplayCapture()
         }
+    }
+
+    func recordChoice() {
+        if isRecording {
+            stopRecording()
+            return
+        }
+        guard captureTask == nil, recordingTask == nil else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Start a screen recording"
+        alert.informativeText = "Choose what RecShot should record."
+        alert.addButton(withTitle: "Application")
+        alert.addButton(withTitle: "Full Display")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            recordApplication()
+        case .alertSecondButtonReturn:
+            recordFullDisplay()
+        default:
+            break
+        }
+    }
+
+    func recordApplication() {
+        guard captureTask == nil, recordingTask == nil, !isRecording else { return }
+        recordingTask = Task { [weak self] in
+            guard let self else { return }
+            defer { recordingTask = nil }
+
+            do {
+                guard await capture.ensurePermission() else { return }
+                let applications = try await recorder.availableApplications()
+                guard let bundleIdentifier = chooseApplication(from: applications) else { return }
+                try await recorder.startApplication(bundleIdentifier: bundleIdentifier)
+                beginRecordingUI()
+            } catch {
+                presentError(error, title: "Couldn’t start recording")
+            }
+        }
+    }
+
+    func recordFullDisplay() {
+        guard captureTask == nil, recordingTask == nil, !isRecording else { return }
+        recordingTask = Task { [weak self] in
+            guard let self else { return }
+            defer { recordingTask = nil }
+
+            do {
+                guard await capture.ensurePermission() else { return }
+                try await recorder.startFullDisplay()
+                beginRecordingUI()
+            } catch {
+                presentError(error, title: "Couldn’t start recording")
+            }
+        }
+    }
+
+    func stopRecording() {
+        guard isRecording, recordingTask == nil else { return }
+        recordingTimerTask?.cancel()
+        recordingTimerTask = nil
+        recordingStartedAt = nil
+
+        recordingTask = Task { [weak self] in
+            guard let self else { return }
+            defer { recordingTask = nil }
+
+            do {
+                let url = try await recorder.stop()
+                isRecording = false
+                addCapture(url)
+            } catch {
+                isRecording = false
+                presentError(error, title: "Couldn’t finish recording")
+            }
+        }
+    }
+
+    var recordingDurationText: String {
+        let totalSeconds = Int(recordingDuration)
+        return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
     func toggleStack() {
@@ -80,7 +171,7 @@ final class AppState: ObservableObject {
     }
 
     private func runRegionCapture() async {
-        guard capture.ensurePermission() else { return }
+        guard await capture.ensurePermission() else { return }
 
         let previousApp = NSWorkspace.shared.frontmostApplication
         isCapturing = true
@@ -106,7 +197,7 @@ final class AppState: ObservableObject {
     }
 
     private func runFullDisplayCapture() async {
-        guard capture.ensurePermission() else { return }
+        guard await capture.ensurePermission() else { return }
 
         isCapturing = true
         try? await Task.sleep(nanoseconds: 120_000_000)
@@ -128,13 +219,44 @@ final class AppState: ObservableObject {
             items.insert(item, at: 0)
             isStackExpanded = true
         }
-        store.trim(&items)
     }
 
-    private func presentError(_ error: Error) {
+    private func beginRecordingUI() {
+        isRecording = true
+        recordingDuration = 0
+        recordingStartedAt = Date()
+        recordingTimerTask?.cancel()
+        recordingTimerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                guard let self, let startedAt = self.recordingStartedAt else { return }
+                self.recordingDuration = Date().timeIntervalSince(startedAt)
+            }
+        }
+    }
+
+    private func chooseApplication(from applications: [RecordingApplication]) -> String? {
+        guard !applications.isEmpty else {
+            presentError(RecordingError.applicationUnavailable, title: "No applications available")
+            return nil
+        }
+
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 280, height: 26))
+        popup.addItems(withTitles: applications.map(\.name))
+
+        let alert = NSAlert()
+        alert.messageText = "Choose an application to record"
+        alert.accessoryView = popup
+        alert.addButton(withTitle: "Record")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        return applications[popup.indexOfSelectedItem].id
+    }
+
+    private func presentError(_ error: Error, title: String = "Couldn’t capture") {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Couldn’t capture screenshot"
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: "OK")
         alert.runModal()

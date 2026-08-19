@@ -11,6 +11,10 @@ struct StackOverlayView: View {
         (NSScreen.main?.visibleFrame.height ?? 800) * 0.55
     }
 
+    private var visibleItems: [ScreenshotItem] {
+        Array(state.items.prefix(AppState.overlayLimit))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showingStack {
@@ -36,8 +40,24 @@ struct StackOverlayView: View {
 
     private var controlPill: some View {
         HStack(spacing: 10) {
-            pillButton(systemImage: "camera.viewfinder", help: "Capture region (⌥⌘S)") {
-                state.captureRegion()
+            if state.isRecording {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.red)
+                    .frame(width: 28, height: 28)
+                    .background(.red.opacity(0.16), in: Circle())
+                    .contentShape(Circle())
+                    .onTapGesture { state.stopRecording() }
+                    .help("Stop recording")
+
+                Text(state.recordingDurationText)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+            } else {
+                pillButton(systemImage: "camera.viewfinder", help: "Capture region (⌥⌘S)") {
+                    state.captureRegion()
+                }
             }
 
             Rectangle()
@@ -48,7 +68,9 @@ struct StackOverlayView: View {
                 Image(systemName: "square.stack")
                     .font(.system(size: 13, weight: .semibold))
                 if !state.items.isEmpty {
-                    Text("\(state.items.count)")
+                    Text(state.items.count > AppState.overlayLimit
+                        ? "\(AppState.overlayLimit)+"
+                        : "\(state.items.count)")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                 }
@@ -89,7 +111,7 @@ struct StackOverlayView: View {
     }
 
     private var peekPile: some View {
-        let peek = Array(state.items.prefix(3))
+        let peek = Array(visibleItems.prefix(3))
         return ZStack {
             ForEach(Array(peek.reversed().enumerated()), id: \.element.id) { index, item in
                 let layer = peek.count - 1 - index
@@ -115,9 +137,9 @@ struct StackOverlayView: View {
 
     private var expandedStack: some View {
         ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: state.items.count > 5) {
+            ScrollView(.vertical, showsIndicators: visibleItems.count > 5) {
                 VStack(spacing: 8) {
-                    ForEach(Array(state.items.reversed())) { item in
+                    ForEach(Array(visibleItems.reversed())) { item in
                         ThumbnailCard(item: item)
                             .id(item.id)
                     }
@@ -133,7 +155,7 @@ struct StackOverlayView: View {
             )
             .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
             .onAppear {
-                if let id = state.items.first?.id {
+                if let id = visibleItems.first?.id {
                     proxy.scrollTo(id, anchor: .bottom)
                 }
             }
