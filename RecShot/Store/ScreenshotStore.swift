@@ -11,6 +11,7 @@ struct ScreenshotItem: Identifiable, Equatable {
     var id: String { url.path }
     let url: URL
     let createdAt: Date
+    let modifiedAt: Date
     let thumbnail: NSImage
     let kind: CaptureKind
     let duration: TimeInterval
@@ -18,7 +19,7 @@ struct ScreenshotItem: Identifiable, Equatable {
     var isVideo: Bool { kind == .recording }
 
     static func == (lhs: ScreenshotItem, rhs: ScreenshotItem) -> Bool {
-        lhs.url == rhs.url
+        lhs.url == rhs.url && lhs.modifiedAt == rhs.modifiedAt
     }
 }
 
@@ -69,6 +70,38 @@ final class ScreenshotStore {
         return url
     }
 
+    func replace(_ image: CGImage, at url: URL) throws {
+        let created = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate
+        let temp = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).png")
+
+        guard let destination = CGImageDestinationCreateWithURL(
+            temp as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw CaptureError.failedToSave
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            try? FileManager.default.removeItem(at: temp)
+            throw CaptureError.failedToSave
+        }
+
+        do {
+            _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
+        } catch {
+            try? FileManager.default.removeItem(at: temp)
+            throw error
+        }
+        if let created {
+            var fileURL = url
+            var values = URLResourceValues()
+            values.creationDate = created
+            try? fileURL.setResourceValues(values)
+        }
+    }
+
     func recordingURL() -> URL {
         ensureDirectory()
         return uniqueURL(fileExtension: "mp4")
@@ -99,6 +132,7 @@ final class ScreenshotStore {
         return ScreenshotItem(
             url: url,
             createdAt: createdAt(url),
+            modifiedAt: modifiedAt(url),
             thumbnail: thumbnail,
             kind: kind,
             duration: duration
@@ -166,6 +200,10 @@ final class ScreenshotStore {
 
     private func createdAt(_ url: URL) -> Date {
         (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+    }
+
+    private func modifiedAt(_ url: URL) -> Date {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? createdAt(url)
     }
 
     private static func thumbnail(from image: NSImage) -> NSImage {

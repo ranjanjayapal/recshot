@@ -12,6 +12,7 @@ struct ThumbnailCard: View {
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 132, height: 88)
+                .id(item.modifiedAt)
                 .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
@@ -25,8 +26,10 @@ struct ThumbnailCard: View {
                 preview: item.thumbnail,
                 isVideo: item.isVideo,
                 onClick: { state.copy(item) },
+                onDoubleClick: { state.edit(item) },
                 onCopy: { state.copy(item) },
                 onReveal: { state.reveal(item) },
+                onEdit: item.isVideo ? nil : { state.edit(item) },
                 onDelete: { state.delete(item) }
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -81,7 +84,9 @@ struct ThumbnailCard: View {
         .scaleEffect(hovering ? 1.03 : 1)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .onHover { hovering = $0 }
-        .help("Drag into any app · Click to copy")
+        .help(item.isVideo
+            ? "Drag into any app · Click to copy · Double-click to open"
+            : "Drag into any app · Click to copy · Double-click to edit")
     }
 
     private func durationText(_ duration: TimeInterval) -> String {
@@ -95,29 +100,31 @@ struct DragSourceRepresentable: NSViewRepresentable {
     let preview: NSImage
     let isVideo: Bool
     let onClick: () -> Void
+    let onDoubleClick: () -> Void
     let onCopy: () -> Void
     let onReveal: () -> Void
+    let onEdit: (() -> Void)?
     let onDelete: () -> Void
 
     func makeNSView(context: Context) -> FileDragView {
         let view = FileDragView()
-        view.url = url
-        view.preview = preview
-        view.isVideo = isVideo
-        view.onClick = onClick
-        view.onCopy = onCopy
-        view.onReveal = onReveal
-        view.onDelete = onDelete
+        apply(to: view)
         return view
     }
 
     func updateNSView(_ view: FileDragView, context: Context) {
+        apply(to: view)
+    }
+
+    private func apply(to view: FileDragView) {
         view.url = url
         view.preview = preview
         view.isVideo = isVideo
         view.onClick = onClick
+        view.onDoubleClick = onDoubleClick
         view.onCopy = onCopy
         view.onReveal = onReveal
+        view.onEdit = onEdit
         view.onDelete = onDelete
     }
 }
@@ -127,8 +134,10 @@ final class FileDragView: NSView, NSDraggingSource {
     var preview: NSImage?
     var isVideo = false
     var onClick: (() -> Void)?
+    var onDoubleClick: (() -> Void)?
     var onCopy: (() -> Void)?
     var onReveal: (() -> Void)?
+    var onEdit: (() -> Void)?
     var onDelete: (() -> Void)?
 
     private var dragStarted = false
@@ -148,6 +157,13 @@ final class FileDragView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(handleSingleClick), object: nil)
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         dragStarted = false
         mouseDownPoint = event.locationInWindow
@@ -160,21 +176,32 @@ final class FileDragView: NSView, NSDraggingSource {
             event.locationInWindow.y - mouseDownPoint.y
         )
         if delta > 5 {
+            NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(handleSingleClick), object: nil)
             dragStarted = true
             beginDrag(event)
         }
     }
 
     override func mouseUp(with event: NSEvent) {
-        if !dragStarted {
-            onClick?()
+        defer {
+            dragStarted = false
+            mouseDownPoint = nil
         }
-        dragStarted = false
-        mouseDownPoint = nil
+        guard !dragStarted else { return }
+
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(handleSingleClick), object: nil)
+        if event.clickCount >= 2 {
+            onDoubleClick?()
+        } else {
+            perform(#selector(handleSingleClick), with: nil, afterDelay: NSEvent.doubleClickInterval)
+        }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
+        if onEdit != nil {
+            menu.addItem(withTitle: "Edit", action: #selector(editItem), keyEquivalent: "")
+        }
         menu.addItem(withTitle: "Copy", action: #selector(copyItem), keyEquivalent: "")
         menu.addItem(withTitle: "Show in Finder", action: #selector(revealItem), keyEquivalent: "")
         menu.addItem(.separator())
@@ -198,8 +225,10 @@ final class FileDragView: NSView, NSDraggingSource {
         .copy
     }
 
+    @objc private func handleSingleClick() { onClick?() }
     @objc private func copyItem() { onCopy?() }
     @objc private func revealItem() { onReveal?() }
+    @objc private func editItem() { onEdit?() }
     @objc private func deleteItem() { onDelete?() }
 }
 

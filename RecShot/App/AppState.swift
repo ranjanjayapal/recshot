@@ -156,6 +156,33 @@ final class AppState: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([item.url])
     }
 
+    func edit(_ item: ScreenshotItem) {
+        if item.isVideo {
+            NSWorkspace.shared.open(item.url)
+            return
+        }
+        MarkupEditorController.shared.present(item)
+    }
+
+    @discardableResult
+    func saveEdits(_ image: CGImage, replacing item: ScreenshotItem) -> Bool {
+        do {
+            try store.replace(image, at: item.url)
+            guard let updated = store.makeItem(url: item.url) else { return true }
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                items[index] = updated
+            }
+            return true
+        } catch {
+            presentError(error, title: "Couldn’t save screenshot")
+            return false
+        }
+    }
+
+    func presentSaveError() {
+        presentError(CaptureError.failedToSave, title: "Couldn’t save screenshot")
+    }
+
     func delete(_ item: ScreenshotItem) {
         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
             items.removeAll { $0.id == item.id }
