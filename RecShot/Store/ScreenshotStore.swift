@@ -70,38 +70,6 @@ final class ScreenshotStore {
         return url
     }
 
-    func replace(_ image: CGImage, at url: URL) throws {
-        let created = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate
-        let temp = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).png")
-
-        guard let destination = CGImageDestinationCreateWithURL(
-            temp as CFURL,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ) else {
-            throw CaptureError.failedToSave
-        }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else {
-            try? FileManager.default.removeItem(at: temp)
-            throw CaptureError.failedToSave
-        }
-
-        do {
-            _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
-        } catch {
-            try? FileManager.default.removeItem(at: temp)
-            throw error
-        }
-        if let created {
-            var fileURL = url
-            var values = URLResourceValues()
-            values.creationDate = created
-            try? fileURL.setResourceValues(values)
-        }
-    }
-
     func recordingURL() -> URL {
         ensureDirectory()
         return uniqueURL(fileExtension: "mp4")
@@ -114,7 +82,7 @@ final class ScreenshotStore {
 
         switch url.pathExtension.lowercased() {
         case "png":
-            guard let image = NSImage(contentsOf: url) else { return nil }
+            guard let image = Self.image(from: url) else { return nil }
             kind = .screenshot
             thumbnail = Self.thumbnail(from: image)
             duration = 0
@@ -144,7 +112,7 @@ final class ScreenshotStore {
         pasteboard.clearContents()
         if item.isVideo {
             pasteboard.writeObjects([item.url as NSURL])
-        } else if let image = NSImage(contentsOf: item.url) {
+        } else if let image = Self.image(from: item.url) {
             pasteboard.writeObjects([image, item.url as NSURL])
         }
     }
@@ -204,6 +172,11 @@ final class ScreenshotStore {
 
     private func modifiedAt(_ url: URL) -> Date {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? createdAt(url)
+    }
+
+    private static func image(from url: URL) -> NSImage? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return NSImage(data: data)
     }
 
     private static func thumbnail(from image: NSImage) -> NSImage {

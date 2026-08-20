@@ -26,6 +26,8 @@ final class AppState: ObservableObject {
     private var recordingTimerTask: Task<Void, Never>?
     private var recordingStartedAt: Date?
     private var copiedResetTask: Task<Void, Never>?
+    private var directoryWatcher: CaptureDirectoryWatcher?
+    private var refreshTask: Task<Void, Never>?
 
     private init() {
         isStackExpanded = UserDefaults.standard.bool(forKey: Self.expandedKey)
@@ -34,6 +36,7 @@ final class AppState: ObservableObject {
     func start() {
         items = store.load()
         showOnboarding = !UserDefaults.standard.bool(forKey: Self.onboardingKey)
+        watchCapturesDirectory()
     }
 
     func captureRegion() {
@@ -161,26 +164,7 @@ final class AppState: ObservableObject {
             NSWorkspace.shared.open(item.url)
             return
         }
-        MarkupEditorController.shared.present(item)
-    }
-
-    @discardableResult
-    func saveEdits(_ image: CGImage, replacing item: ScreenshotItem) -> Bool {
-        do {
-            try store.replace(image, at: item.url)
-            guard let updated = store.makeItem(url: item.url) else { return true }
-            if let index = items.firstIndex(where: { $0.id == item.id }) {
-                items[index] = updated
-            }
-            return true
-        } catch {
-            presentError(error, title: "Couldn’t save screenshot")
-            return false
-        }
-    }
-
-    func presentSaveError() {
-        presentError(CaptureError.failedToSave, title: "Couldn’t save screenshot")
+        openInPreview(item.url)
     }
 
     func delete(_ item: ScreenshotItem) {
@@ -238,6 +222,39 @@ final class AppState: ObservableObject {
         }
 
         isCapturing = false
+    }
+
+    private func watchCapturesDirectory() {
+        let watcher = CaptureDirectoryWatcher()
+        watcher.start(directory: store.capturesDirectory) { [weak self] in
+            self?.scheduleRefreshFromDisk()
+        }
+        directoryWatcher = watcher
+    }
+
+    private func scheduleRefreshFromDisk() {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            self?.refreshFromDisk()
+        }
+    }
+
+    private func refreshFromDisk() {
+        let latest = store.load()
+        guard latest != items else { return }
+        items = latest
+    }
+
+    private func openInPreview(_ url: URL) {
+        guard let preview = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Preview") else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.open([url], withApplicationAt: preview, configuration: configuration)
     }
 
     private func addCapture(_ url: URL) {

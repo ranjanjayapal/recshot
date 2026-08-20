@@ -86,7 +86,7 @@ struct ThumbnailCard: View {
         .onHover { hovering = $0 }
         .help(item.isVideo
             ? "Drag into any app · Click to copy · Double-click to open"
-            : "Drag into any app · Click to copy · Double-click to edit")
+            : "Drag into any app · Click to copy · Double-click to edit in Preview")
     }
 
     private func durationText(_ duration: TimeInterval) -> String {
@@ -200,7 +200,7 @@ final class FileDragView: NSView, NSDraggingSource {
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
         if onEdit != nil {
-            menu.addItem(withTitle: "Edit", action: #selector(editItem), keyEquivalent: "")
+            menu.addItem(withTitle: "Edit in Preview", action: #selector(editItem), keyEquivalent: "")
         }
         menu.addItem(withTitle: "Copy", action: #selector(copyItem), keyEquivalent: "")
         menu.addItem(withTitle: "Show in Finder", action: #selector(revealItem), keyEquivalent: "")

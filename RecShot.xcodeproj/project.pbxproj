@@ -14,11 +14,10 @@
 		3AA9AAFE76EA01C4987585AE /* OverlayPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3257F49DB3BC5B1D3BA30C /* OverlayPanelController.swift */; };
 		3D1829D043DA26E75CD49883 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86CCF018E0841A2A4A2DACE /* AppDelegate.swift */; };
 		547D175CEE58B5F78973A343 /* StackOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F429535E84EE1AADB91718D3 /* StackOverlayView.swift */; };
+		5B25ECA88E250CF001D7A46C /* CaptureDirectoryWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60846E7CC3CDB9CFCFA89AB /* CaptureDirectoryWatcher.swift */; };
 		5BED237F7068A36A35B8AD7E /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3849E63FAC82A76F55A07B9C /* ThumbnailView.swift */; };
 		65AA295A2F862BC61FE1CB09 /* CaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BC0FD5F77CFAB7A0EDF12B2 /* CaptureManager.swift */; };
 		8F28FB8EF8220B5AE731B401 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C5DACFBFD3B82F6F4347843F /* Assets.xcassets */; };
-		8F7E909AE29B953DCB4ECE11 /* AnnotationCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D31C2BAA346D67E735C4A19 /* AnnotationCanvas.swift */; };
-		B61926F0C6648E3E22E3820F /* MarkupEditorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57BCB9D22781ABF695AD2504 /* MarkupEditorController.swift */; };
 		CEBE3557592A8E46C11F08E0 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05EEEDB25B4E259122E717BE /* AppState.swift */; };
 		E3CE8D9BF8188CAB1C61C8E0 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F228DB278FCBCBDA8783078 /* ScreenRecorder.swift */; };
 		EA6756DC3E86EACA481387CF /* ScreenshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1001D74519EE2A09093CCA42 /* ScreenshotStore.swift */; };
@@ -29,10 +28,8 @@
 		05EEEDB25B4E259122E717BE /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		1001D74519EE2A09093CCA42 /* ScreenshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotStore.swift; sourceTree = "<group>"; };
 		11B77E5AA7A4D257612BA814 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
-		1D31C2BAA346D67E735C4A19 /* AnnotationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvas.swift; sourceTree = "<group>"; };
 		2E60C73A289A53ABACD13BD9 /* RecShot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RecShot.entitlements; sourceTree = "<group>"; };
 		3849E63FAC82A76F55A07B9C /* ThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailView.swift; sourceTree = "<group>"; };
-		57BCB9D22781ABF695AD2504 /* MarkupEditorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupEditorController.swift; sourceTree = "<group>"; };
 		5F228DB278FCBCBDA8783078 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
 		648027036920D7477DDAE449 /* RegionSelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelectionController.swift; sourceTree = "<group>"; };
 		6B37C99F4FC9E211CAC6251D /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
@@ -40,6 +37,7 @@
 		8754ACCD38C1518C1BFA8953 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		AF3257F49DB3BC5B1D3BA30C /* OverlayPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanelController.swift; sourceTree = "<group>"; };
 		C5DACFBFD3B82F6F4347843F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C60846E7CC3CDB9CFCFA89AB /* CaptureDirectoryWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureDirectoryWatcher.swift; sourceTree = "<group>"; };
 		C86CCF018E0841A2A4A2DACE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DD5F565BB0A818E3EB8C8B4F /* RecShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RecShot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E35177C67D354AA3E6668EB4 /* RecShotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecShotApp.swift; sourceTree = "<group>"; };
@@ -50,6 +48,7 @@
 		1CBE26C1DA58AEFCD4C82FDD /* Store */ = {
 			isa = PBXGroup;
 			children = (
+				C60846E7CC3CDB9CFCFA89AB /* CaptureDirectoryWatcher.swift */,
 				1001D74519EE2A09093CCA42 /* ScreenshotStore.swift */,
 			);
 			path = Store;
@@ -81,8 +80,6 @@
 		60152D6AAB9D4B8BBCF85090 /* Overlay */ = {
 			isa = PBXGroup;
 			children = (
-				1D31C2BAA346D67E735C4A19 /* AnnotationCanvas.swift */,
-				57BCB9D22781ABF695AD2504 /* MarkupEditorController.swift */,
 				AF3257F49DB3BC5B1D3BA30C /* OverlayPanelController.swift */,
 				F429535E84EE1AADB91718D3 /* StackOverlayView.swift */,
 				3849E63FAC82A76F55A07B9C /* ThumbnailView.swift */,
@@ -198,12 +195,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8F7E909AE29B953DCB4ECE11 /* AnnotationCanvas.swift in Sources */,
 				3D1829D043DA26E75CD49883 /* AppDelegate.swift in Sources */,
 				CEBE3557592A8E46C11F08E0 /* AppState.swift in Sources */,
+				5B25ECA88E250CF001D7A46C /* CaptureDirectoryWatcher.swift in Sources */,
 				65AA295A2F862BC61FE1CB09 /* CaptureManager.swift in Sources */,
 				376A6D0A3FD885F605C13BE5 /* HotkeyManager.swift in Sources */,
-				B61926F0C6648E3E22E3820F /* MarkupEditorController.swift in Sources */,
 				22DC5D1BA7EBD640155EBC8C /* MenuBarView.swift in Sources */,
 				3AA9AAFE76EA01C4987585AE /* OverlayPanelController.swift in Sources */,
 				ECCE3D3AFF0FD696A7CF9AFE /* RecShotApp.swift in Sources */,
